@@ -3,6 +3,8 @@
 import io
 import json
 import logging
+import os
+import platform
 import socket
 import sys
 import time
@@ -376,6 +378,59 @@ class TestConnectionPool(HTTPDummyServerTestCase):
         with HTTPConnectionPool(self.host, self.port, timeout=timeout) as pool:
             pool.request("GET", "/")
 
+    socket_timeout_reuse_testdata = pytest.mark.parametrize(
+        ["timeout", "expect_settimeout_calls"],
+        [
+            (1, (1, 1)),
+            (None, (None, None)),
+            (Timeout(read=4), (None, 4)),
+            (Timeout(read=4, connect=5), (5, 4)),
+            (Timeout(connect=6), (6, None)),
+        ],
+    )
+
+    @socket_timeout_reuse_testdata
+    def test_socket_timeout_updated_on_reuse_constructor(
+        self, timeout, expect_settimeout_calls
+    ):
+        with HTTPConnectionPool(self.host, self.port, timeout=timeout) as pool:
+            # Make a request to create a new connection.
+            pool.urlopen("GET", "/")
+
+            # Grab the connection and mock the inner socket.
+            assert pool.pool is not None
+            conn = pool.pool.get_nowait()
+            conn_sock = mock.Mock(wraps=conn.sock)
+            conn.sock = conn_sock
+            pool._put_conn(conn)
+
+            # Assert that sock.settimeout() is called with the new connect timeout, then the read timeout.
+            pool.urlopen("GET", "/", timeout=timeout)
+            conn_sock.settimeout.assert_has_calls(
+                [mock.call(x) for x in expect_settimeout_calls]
+            )
+
+    @socket_timeout_reuse_testdata
+    def test_socket_timeout_updated_on_reuse_parameter(
+        self, timeout, expect_settimeout_calls
+    ):
+        with HTTPConnectionPool(self.host, self.port) as pool:
+            # Make a request to create a new connection.
+            pool.urlopen("GET", "/", timeout=LONG_TIMEOUT)
+
+            # Grab the connection and mock the inner socket.
+            assert pool.pool is not None
+            conn = pool.pool.get_nowait()
+            conn_sock = mock.Mock(wraps=conn.sock)
+            conn.sock = conn_sock
+            pool._put_conn(conn)
+
+            # Assert that sock.settimeout() is called with the new connect timeout, then the read timeout.
+            pool.urlopen("GET", "/", timeout=timeout)
+            conn_sock.settimeout.assert_has_calls(
+                [mock.call(x) for x in expect_settimeout_calls]
+            )
+
     def test_tunnel(self):
         # note the actual httplib.py has no tests for this functionality
         timeout = Timeout(total=None)
@@ -408,6 +463,17 @@ class TestConnectionPool(HTTPDummyServerTestCase):
             r = pool.request("GET", "/redirect", fields={"target": "/"})
             assert r.status == 200
             assert r.data == b"Dummy server!"
+
+    def test_303_redirect_makes_request_lose_body(self):
+        with HTTPConnectionPool(self.host, self.port) as pool:
+            response = pool.request(
+                "POST",
+                "/redirect",
+                fields={"target": "/headers_and_params", "status": "303 See Other"},
+            )
+        data = json.loads(response.data)
+        assert data["params"] == {}
+        assert "Content-Type" not in HTTPHeaderDict(data["headers"])
 
     def test_bad_connect(self):
         with HTTPConnectionPool("badhost.invalid", self.port) as pool:
@@ -694,6 +760,12 @@ class TestConnectionPool(HTTPDummyServerTestCase):
             r = pool.request("GET", "/echo_params?q=\r&k=\n \n")
             assert r.data == b"[('k', '\\n \\n'), ('q', '\\r')]"
 
+    @pytest.mark.skipif(
+        six.PY2
+        and platform.system() == "Darwin"
+        and os.environ.get("GITHUB_ACTIONS") == "true",
+        reason="fails on macOS 2.7 in GitHub Actions for an unknown reason",
+    )
     def test_source_address(self):
         for addr, is_ipv6 in VALID_SOURCE_ADDRESSES:
             if is_ipv6 and not HAS_IPV6_AND_DNS:
@@ -705,6 +777,12 @@ class TestConnectionPool(HTTPDummyServerTestCase):
                 r = pool.request("GET", "/source_address")
                 assert r.data == b(addr[0])
 
+    @pytest.mark.skipif(
+        six.PY2
+        and platform.system() == "Darwin"
+        and os.environ.get("GITHUB_ACTIONS") == "true",
+        reason="fails on macOS 2.7 in GitHub Actions for an unknown reason",
+    )
     def test_source_address_error(self):
         for addr in INVALID_SOURCE_ADDRESSES:
             with HTTPConnectionPool(

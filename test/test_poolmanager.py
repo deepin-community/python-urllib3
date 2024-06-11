@@ -1,10 +1,12 @@
+import gc
 import socket
 from test import resolvesLocalhostFQDN
 
 import pytest
+from mock import patch
 
 from urllib3 import connection_from_url
-from urllib3.exceptions import ClosedPoolError, LocationValueError
+from urllib3.exceptions import LocationValueError
 from urllib3.poolmanager import PoolKey, PoolManager, key_fn_by_scheme
 from urllib3.util import retry, timeout
 
@@ -59,22 +61,10 @@ class TestPoolManager(object):
     def test_manager_clear(self):
         p = PoolManager(5)
 
-        conn_pool = p.connection_from_url("http://google.com")
+        p.connection_from_url("http://google.com")
         assert len(p.pools) == 1
 
-        conn = conn_pool._get_conn()
-
         p.clear()
-        assert len(p.pools) == 0
-
-        with pytest.raises(ClosedPoolError):
-            conn_pool._get_conn()
-
-        conn_pool._put_conn(conn)
-
-        with pytest.raises(ClosedPoolError):
-            conn_pool._get_conn()
-
         assert len(p.pools) == 0
 
     @pytest.mark.parametrize("url", ["http://@", None])
@@ -85,19 +75,8 @@ class TestPoolManager(object):
 
     def test_contextmanager(self):
         with PoolManager(1) as p:
-            conn_pool = p.connection_from_url("http://google.com")
+            p.connection_from_url("http://google.com")
             assert len(p.pools) == 1
-            conn = conn_pool._get_conn()
-
-        assert len(p.pools) == 0
-
-        with pytest.raises(ClosedPoolError):
-            conn_pool._get_conn()
-
-        conn_pool._put_conn(conn)
-
-        with pytest.raises(ClosedPoolError):
-            conn_pool._get_conn()
 
         assert len(p.pools) == 0
 
@@ -372,3 +351,54 @@ class TestPoolManager(object):
         p = PoolManager(strict=True)
         assert p._proxy_requires_url_absolute_form("http://example.com") is False
         assert p._proxy_requires_url_absolute_form("https://example.com") is False
+
+    @pytest.mark.parametrize(
+        "url",
+        [
+            "[a::b%zone]",
+            "[a::b%25zone]",
+            "http://[a::b%zone]",
+            "http://[a::b%25zone]",
+        ],
+    )
+    @patch("urllib3.util.connection.create_connection")
+    def test_e2e_connect_to_ipv6_scoped(self, create_connection, url):
+        """Checks that IPv6 scoped addresses are properly handled end-to-end.
+
+        This is not strictly speaking a pool manager unit test - this test
+        lives here in absence of a better code location for e2e/integration
+        tests.
+        """
+        p = PoolManager()
+        conn_pool = p.connection_from_url(url)
+        conn = conn_pool._get_conn()
+        conn.connect()
+
+        assert create_connection.call_args[0][0] == ("a::b%zone", 80)
+
+    def test_thread_safty(self):
+        pool_manager = PoolManager(num_pools=2)
+
+        # thread 1 gets a pool for host x
+        pool_1 = pool_manager.connection_from_url("http://host_x:80/")
+
+        # thread 2 gets a pool for host y
+        pool_2 = pool_manager.connection_from_url("http://host_y:80/")
+
+        # thread 3 gets a pool for host z
+        pool_3 = pool_manager.connection_from_url("http://host_z:80")
+
+        # None of the pools should be closed, since all of them are referenced.
+        assert pool_1.pool is not None
+        assert pool_2.pool is not None
+        assert pool_3.pool is not None
+
+        conn_queue = pool_1.pool
+        assert conn_queue.qsize() > 0
+
+        # thread 1 stops.
+        del pool_1
+        gc.collect()
+
+        # Connection should be closed, because reference to pool_1 is gone.
+        assert conn_queue.qsize() == 0

@@ -141,7 +141,7 @@ class TestRetry(object):
 
     def test_backoff(self):
         """Backoff is computed correctly"""
-        max_backoff = Retry.BACKOFF_MAX
+        max_backoff = Retry.DEFAULT_BACKOFF_MAX
 
         retry = Retry(total=100, backoff_factor=0.2)
         assert retry.get_backoff_time() == 0  # First request
@@ -293,12 +293,12 @@ class TestRetry(object):
     def test_retry_default_remove_headers_on_redirect(self):
         retry = Retry()
 
-        assert list(retry.remove_headers_on_redirect) == ["authorization"]
+        assert retry.remove_headers_on_redirect == {"authorization", "cookie"}
 
     def test_retry_set_remove_headers_on_redirect(self):
         retry = Retry(remove_headers_on_redirect=["X-API-Secret"])
 
-        assert list(retry.remove_headers_on_redirect) == ["x-api-secret"]
+        assert retry.remove_headers_on_redirect == {"x-api-secret"}
 
     @pytest.mark.parametrize("value", ["-1", "+1", "1.0", six.u("\xb2")])  # \xb2 = ^2
     def test_parse_retry_after_invalid(self, value):
