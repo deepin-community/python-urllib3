@@ -1,0 +1,47 @@
+From: Thomas Grainger <tagrain@gmail.com>
+Date: Wed, 9 Nov 2022 15:09:26 +0000
+Subject: implement missing importlib methods
+
+Adds support for Python 3.12.
+
+Bug-Debian: https://bugs.debian.org/1056511
+Origin: https://github.com/urllib3/urllib3/pull/2790/commits/2984ea1c4681e899002372ee7b961efb72f4583c
+---
+ test/test_no_ssl.py | 17 +++++++++++++++++
+ 1 file changed, 17 insertions(+)
+
+diff --git a/test/test_no_ssl.py b/test/test_no_ssl.py
+index 7cf6260..b790942 100644
+--- a/test/test_no_ssl.py
++++ b/test/test_no_ssl.py
+@@ -6,6 +6,7 @@ Test what happens if Python was built without SSL
+ """
+ 
+ import sys
++import importlib.util
+ 
+ import pytest
+ 
+@@ -29,6 +30,22 @@ class ImportBlocker(object):
+     def load_module(self, fullname):
+         raise ImportError("import of {0} is blocked".format(fullname))
+ 
++    def exec_module(self, module):
++        raise ImportError(f"import of {0} is blocked".format(module))
++
++    def find_spec(
++        self,
++        fullname: str,
++        path,
++        target = None,
++    ):
++
++        loader = self.find_module(fullname, path)
++        if loader is None:
++            return None
++
++        return importlib.util.spec_from_loader(fullname, loader)
++
+ 
+ class ModuleStash(object):
+     """

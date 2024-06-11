@@ -20,7 +20,7 @@ def server_client_ssl_contexts():
     if hasattr(ssl, "PROTOCOL_TLS_SERVER"):
         server_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     else:
-        # python 2.7 and 3.5 workaround.
+        # python 2.7 workaround.
         # PROTOCOL_TLS_SERVER was added in 3.6
         server_context = ssl.SSLContext(ssl.PROTOCOL_TLS)
     server_context.load_cert_chain(DEFAULT_CERTS["certfile"], DEFAULT_CERTS["keyfile"])
@@ -28,7 +28,7 @@ def server_client_ssl_contexts():
     if hasattr(ssl, "PROTOCOL_TLS_CLIENT"):
         client_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
     else:
-        # python 2.7 and 3.5 workaround.
+        # python 2.7 workaround.
         # PROTOCOL_TLS_SERVER was added in 3.6
         client_context = ssl.SSLContext(ssl.PROTOCOL_TLS)
         client_context.verify_mode = ssl.CERT_REQUIRED
@@ -202,8 +202,11 @@ class SingleTLSLayerTestCase(SocketDummyServerTestCase):
             assert ssock.selected_npn_protocol() is None
 
             shared_ciphers = ssock.shared_ciphers()
-            assert type(shared_ciphers) == list
-            assert len(shared_ciphers) > 0
+            # SSLContext.shared_ciphers() changed behavior completely in a patch version.
+            # See: https://github.com/python/cpython/issues/96931
+            assert shared_ciphers is None or (
+                type(shared_ciphers) is list and len(shared_ciphers) > 0
+            )
 
             assert ssock.compression() is None
 
