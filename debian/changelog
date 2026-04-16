@@ -1,3 +1,52 @@
+python-urllib3 (2.6.3-2) unstable; urgency=medium
+
+  * Team upload.
+  * Add python3-supported-min alternative for backports.zstd (see #1130913).
+
+ -- Colin Watson <cjwatson@debian.org>  Wed, 18 Mar 2026 12:38:29 +0000
+
+python-urllib3 (2.6.3-1) unstable; urgency=medium
+
+  * Team upload.
+  * New upstream release:
+    - CVE-2025-66471: Fixed a security issue where streaming API could
+      improperly handle highly compressed HTTP content ("decompression
+      bombs") leading to excessive resource consumption even when a small
+      amount of data was requested.  Reading small chunks of compressed data
+      is safer and much more efficient now (closes: #1122029).
+    - Fixed HTTPResponse.read_chunked() to properly handle leftover data in
+      the decoder's buffer when reading compressed chunked responses
+      (closes: #1122743).
+  * Bump Build-Depends/Suggests on python3-brotli to >= 1.2.0 to improve the
+    fix for CVE-2025-66418.
+
+ -- Colin Watson <cjwatson@debian.org>  Fri, 06 Feb 2026 00:37:49 +0000
+
+python-urllib3 (2.5.0-2) unstable; urgency=medium
+
+  * Team upload.
+
+  [ Salvatore Bonaccorso ]
+  * Fix security issue where decompression-bomb safeguards of the
+    streaming API were bypassed when HTTP redirects were followed.
+    (CVE-2026-21441) (Closes: #1125062)
+
+  [ Santiago Vila ]
+  * Drop debian/.gitignore, dpkg-buildpackage dislikes it.
+  * d/control: Drop "Rules-Requires-Root: no" (default).
+  * d/control: Drop "Priority: optional" (default).
+  * d/control: Update standards-version.
+
+ -- Santiago Vila <sanvila@debian.org>  Sat, 10 Jan 2026 18:20:00 +0100
+
+python-urllib3 (2.5.0-1.1) unstable; urgency=medium
+
+  * Non-maintainer upload.
+  * Unbounded number of links in the decompression chain (CVE-2025-66418)
+    (Closes: #1122030)
+
+ -- Salvatore Bonaccorso <carnil@debian.org>  Sat, 03 Jan 2026 20:00:44 +0100
+
 python-urllib3 (2.5.0-1) unstable; urgency=medium
 
   * Team upload.
