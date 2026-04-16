@@ -2,6 +2,7 @@ Tests: python3-urllib3
 Restrictions: allow-stderr
 Depends:
  python3-all,
+ python3-backports.zstd | python3-supported-min (>= 3.14),
  python3-brotli,
  python3-coverage,
  python3-cryptography,
