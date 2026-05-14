@@ -10,10 +10,10 @@ Last-Update: 2024-11-12
  1 file changed, 1 insertion(+)
 
 diff --git a/test/with_dummyserver/test_https.py b/test/with_dummyserver/test_https.py
-index 95d8970..dbe389e 100644
+index b1e0406..4cda99e 100644
 --- a/test/with_dummyserver/test_https.py
 +++ b/test/with_dummyserver/test_https.py
-@@ -1049,6 +1049,7 @@ class BaseTestHTTPS(HTTPSHypercornDummyServerTestCase):
+@@ -1061,6 +1061,7 @@ class BaseTestHTTPS(HTTPSHypercornDummyServerTestCase):
          finally:
              urllib3.http2.extract_from_urllib3()
  
